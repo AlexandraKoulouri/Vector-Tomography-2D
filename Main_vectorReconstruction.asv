@@ -1,0 +1,102 @@
+%Test the reconstruction result when a circular domain is used both for the
+%forward and inverse  problem
+%The available data is both the longitudinal and transverse integral
+%and cimmino algorithm is used for the estimation of the electric field
+%please add regularization toolbox: http://www.imm.dtu.dk/~pcha/Regutools/ to the matlab path
+
+
+clear all; close all; clc
+
+%load forward and inverse triangular mesh
+load meshes %(H,g,node)
+
+
+
+%% Forward Problem: field and potentials
+%electric field from the FEM solution of potential distribution
+%estimate the gradient of the potentials (\nabla u)
+
+%load dipole source
+load ElectricDipole
+
+%Estimate potential on the domain and Electric field
+%load lead field matrix for the estimation of the potetials on the domain
+load LeadFieldMatrix
+
+Pot = LF_frw*dip;
+Grad = GradientEst(Node_frw,Pot); 
+E_frw   = -Grad;                        %E=-\nabla u
+
+M = InterpolateMatrix2d(H_frw,g_frw,g_inv);
+
+PE_frw = M*E_frw;                          %Project field to the inverse mesh
+
+%% load projection matrices
+
+load TransverseRay
+load LongitudinalRay
+
+
+%% Measurements - Forward projects
+b = Ray_frw*Eu(:);  % Longitudinal measurements
+c = RayT_frw*Eu(:); % Transverse measurements
+
+%Observations
+b1 =[b; c];
+
+%projection matrix
+A = [Ray;TRay];
+%%Estimate solution using ART
+e = cimmino(A,b1,15);
+%%
+figure;
+set(gcf, 'Units','centimeters', 'Position',[5 5 14 13])
+
+% -- compare and plot results
+axes('position',[0.46 0.975 0.10 0.45])
+texthvc(0,0,'Magnitude of the field', 'cl',[0 0 0])
+axis off
+axes('position',[0.1 0.57 0.32 0.34]);
+Plotinvsolnode(abs(PE_frw(:,1)+1i*PE_frw(:,2)),gPix_inv,H_inv);
+title('Test Case')
+axis off
+axis equal
+axes('position',[0.15 0.50 0.25 0.08]);
+colorbar('location','South')
+caxis([0 max(abs(PE_frw(:,1)+1i*PE_frw(:,2)))])  
+axis off
+
+
+e_x =  e(1:length(PE_frw),:);
+e_y =  e((length(PE_frw)+1:end),:);
+
+FieldStr = abs(e_x+1i*e_y);
+
+axes('position',[0.52 0.57 0.32 0.34])
+Plotinvsolnode(FieldStr,gPix_inv,H_inv);
+caxis([0 max(FieldStr)])  
+title(['Reconstruction']); %it's actually 40dB
+axis xy
+axis equal
+axis off
+
+axes('position',[0.57 0.50 0.25 0.08]);
+colorbar('location','South')
+caxis([0 max(FieldStr)])  
+axis off
+
+
+axes('position',[0.46 0.46 0.10 0.45])
+texthvc(0,0,'(Unit-length) field lines', 'cl',[0 0 0])
+axis off
+
+axes('position',[0.1 0.09 0.32 0.34]);
+PnEfrw = NormalizeField(PE_frw);
+quiver(g_inv(:,1),g_inv(:,2),PnEfrw(:,1),PnEfrw(:,2));hold on
+
+axes('position',[0.52 0.09 0.32 0.34])
+nEinv = NormalizeField([ex ey]);
+quiver(g_inv(:,1),g_inv(:,2),nEinv(:,1),nEinv(:,2));
+
+
+
